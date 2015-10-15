@@ -21,21 +21,70 @@ EOS                                 = ';'
                                     / '#' ( !'\n' . )*
 EOF                                 = !.
 
+example COMMENT '''
+# comment
+'''
+
+// KeyWord
+"False"                             = 'False' !W
+"class"                             = 'class' !W
+"finally"                           = 'finally' !W
+"is"                                = 'is' !W
+"return"                            = 'return' !W
+"None"                              = 'None' !W
+"continue"                          = 'continue' !W
+"for"                               = 'for' !W
+"lambda"                            = 'lambda' !W
+"try"                               = 'try' !W
+"True"                              = 'True' !W
+"def"                               = 'def' !W
+"from"                              = 'from' !W
+"nonlocal"                          = 'nonlocal' !W
+"while"                             = 'while' !W
+"and"                               = 'and' !W
+"del"                               = 'del' !W
+"global"                            = 'global' !W
+"not"                               = 'not' !W
+"with"                              = 'with' !W
+"assert"                            = 'assert' !W
+"as"                                = 'as' !W
+"elif"                              = 'elif' !W
+"if"                                = 'if' !W
+"or"                                = 'or' !W
+"yield"                             = 'yield' !W
+"else"                              = 'else' !W
+"import"                            = 'import' !W
+"pass"                              = 'pass' !W
+"break"                             = 'break' !W
+"except"                            = 'except' !W
+"in"                                = 'in' !W
+"raise"                             = 'raise' !W
+
 // ====================
 // Def
 // ====================
-FuncDef                             = { 'def' ___ $(Name) ___ $(Parameters) $({ ( _ '->' _ $(Test) )? #Arrow }) ___ ':' ___ $(Suite) #Function }
-Parameters                          = { '(' __ $(ParameterList)? __ ')' #Apply }
-ParameterList                       = { '**' _ $(Parameter) #Params }
-                                    / { '*' ( _ $(Parameter) )? ( ___ ',' __ $(Parameter) )* ( ___ ',' __ '**' _ $(Parameter) )? #Params }
-                                    / { ( $(DefParameter) ( ___ ',' __ $(DefParameter) )* )? ( ___ ',' __ ('**' _ $(Parameter) / '*' ( _ $(Parameter) )? ( ___ ',' __ $(Parameter) )* ( ___ ',' __ '**' _ $(Parameter) )?) )? ( ___ ',' )? #Params }
+
+// function definition
+FuncDef                             = { 'def' ___ $name(Name) ___ $param(Parameters) $({ ( _ '->' _ $(Test) )? #TODO }) ___ ':' ___ $body(Block) #FuncDecl }
+Parameters                          = '(' __ {(ParameterList)? #List } __ ')'
+ParameterList                       = $({ '**' _ $(Parameter) #TODO })
+                                    / $({ '*' ( _ $(Parameter) )? ( ___ ',' __ $(Parameter) )* ( ___ ',' __ '**' _ $(Parameter) )? #TODO })
+                                    / ( $(DefParameter) ( ___ ',' __ $(DefParameter) )* )? ( ___ ',' __ ('**' _ $(Parameter) / '*' ( _ $(Parameter) )? ( ___ ',' __ $(Parameter) )* ( ___ ',' __ '**' _ $(Parameter) )?) )? ( ___ ',' )?
 DefParameter                        = Parameter {$ __ '=' __ $(Test) #Initialize }?
-Parameter                           = Name {$ __ ':' __ $(Test) #KeyValue }?
+Parameter                           = { $name(Name) {$ __ ':' __ $(Test) #KeyValue }? #Param }
 VarArgList                          = { '**' _ $(VarArg) #VarArgs }
                                     / { '*' ( _ $(VarArg) )? ( ___ ',' __ $(VarArg) )* ( ___ ',' __ '**' _ $(VarArg) )? #VarArgs }
                                     / { ( $(DefVarArg) ( ___ ',' __ $(DefVarArg) )* )? ( ___ ',' __ ('**' _ $(VarArg) / '*' ( _ $(VarArg) )? ( ___ ',' __ $(VarArg) )* ( ___ ',' __ '**' _ $(VarArg) )?) )? ( ___ ',' )? #VarArgs }
 DefVarArg                           = VarArg {$ __ '=' __ $(Test) #Initialize }?
 VarArg                              = Name
+
+// class definition
+ClassDef                            = { 'class' ___ $(Name) ___ ( '(' __ $(ArgList) __ ')' ___ )? ':' ___ $(Block) #Class }
+ArgList                             = { '**' _ $(Test) #List }
+                                    / { '*' ( _ $(Test) )? ( ___ ',' __ Argument )* ( ___ ',' __ '**' _ $(Test) )? #List }
+                                    / { ( Argument ( ___ ',' __ Argument )* )? ( ___ ',' __ ('**' _ $(Test) / '*' ( _ $(Test) )? ( ___ ',' __ Argument )* ( ___ ',' __ '**' _ $(Test) )?) )? ( ___ ',' )? #List }
+Argument                            = $({ $(Test) ( __ $(CompFor) )? ___ '=' __ $(Test) #Initialize })
+                                    / $(Test) ( __ $(CompFor) )?
 
 example FuncDef '''
 def f() :
@@ -50,12 +99,33 @@ def fib(n):
     return fib(n-1) + fib(n-2)
 '''
 
+example FuncDef '''
+def add(x, y):
+  return x+y
+'''
+
+example ClassDef '''
+class Foo:
+  pass
+'''
+
+example ClassDef '''
+class Foo(object):
+    pass
+'''
+
 // ====================
 //      Decorator
 // ====================
 Decorated                           = { $(Decorators) _ ($(ClassDef) / $(FuncDef)) #Decorated }
 Decorators                          = Decorator {$ __ $(Decorator)+ #List }?
 Decorator                           = { '@' $(DottedName) ( ___ '(' __ $(ArgList)? __ ')' )? _ NEWLINE #Decorator }
+
+example Decorated '''
+@f1(arg)
+@f2
+class Foo: pass
+'''
 
 // ====================
 //      Statement
@@ -80,7 +150,7 @@ FlowStatement                       = BreakStatement
                                     / YieldStatement
 BreakStatement                      = { 'break' #Break }
 ContinueStatement                   = { 'continue' #Continue }
-ReturnStatement                     = { 'return' ( ___ $(TestList) )? #Return }
+ReturnStatement                     = { 'return' ( ___ $expr(TestList) )? #Return }
 RaiseStatement                      = { 'raise' ( ___ $(TestList) ( ___ $({ 'from' ___ $(Test) #From }) )? )? #Raise }
 YieldStatement                      = YieldExpr
 ImportStatement                     = ImportName
@@ -108,6 +178,7 @@ example ReturnStatement return None
 example RaiseStatement  raise SpamIndexError(original) from original
 example ImportStatement import sound.effects.echo
 example ImportStatement from sound.effects import *
+example ImportStatement from foo.bar import baz
 example ImportStatement import sound.effects.echo as echo
 example GlobalStatement global var
 example NonLocalStatement nonlocal var
@@ -121,23 +192,44 @@ CompoundStatement                   = IfStatement
                                     / FuncDef
                                     / ClassDef
                                     / Decorated
-IfStatement                         = { 'if' ___ $(Test) ___ ':' ___ $(Suite) ( <match Indent> $(Elif) )* ( <match Indent> $(Else) )? #If }
-Elif                                = { 'elif' ___ $(Test) ___ ':' ___ $(Suite) #Elif }
-Else                                = { 'else' ___ ':' ___ $(Suite) #Else }
-WhileStatement                      = { 'while' ___ $(Test) ___ ':' ___ $(Suite) ( <match Indent> $(Else) )? #While }
-ForStatement                        = { 'for' ___ $(ExprList) ___ 'in' ___ $(TestList) ___ ':' ___ $(Suite) ( <match Indent> $(Else) )? #For }
-TryStatement                        = { 'try' ___ ':' ___ $(Suite) (( <match Indent> $(Except) )+ ( <match Indent> $(Else) )? ( <match Indent> $(Finally) )? / <match Indent> $(Finally)) #Try }
-Except                              = { 'except' ( ___ $(TestList) ( ___ $({ 'as' ___ $(Name) #As }) )? )? ___ ':' ___ $(Suite) #Except }
-Finally                             = { 'finally' ___ ':' ___ $(Suite) #Finally }
-WithStatement                       = { 'with' ___ $(WithItemList) ___ ':' ___ $(Suite) #With }
+
+// if/elif/else
+IfStatement                         = { 'if' ___ $cond(Test) ___ ':' ___ $then(Block) ( $else(Elif) / Else )? #If }
+Elif                                = <match Indent> { 'elif' ___ $cond(Test) ___ ':' ___ $then(Block) ($else(Elif) / Else )?  #If }
+Else                                = <match Indent> 'else' ___ ':' ___ $else(Block)
+
+// while
+WhileStatement                      = { 'while' ___ $(Test) ___ ':' ___ $(Block) Else? #While }
+
+// for
+ForStatement                        = { 'for' ___ $(ExprList) ___ 'in' ___ $(TestList) ___ ':' ___ $(Block) Else? #For }
+
+// try/except
+TryStatement                        = { 'try' ___ ':' ___ $try(Block) ($catch(ExceptBlock) Else? ( <match Indent> $finally(Finally) )? / <match Indent> $(Finally)) #Try }
+ExceptBlock                         = { $(Except)+ #List }
+Except                              = <match Indent> { 'except' ( ___ $(TestList) ( ___ $(AsName))?)? ___ ':' ___ $(Block) #Catch }
+AsName                              = { 'as' ___ $(Name) #As }
+Finally                             = { 'finally' ___ ':' ___ $(Block) #Finally }
+
+// with
+WithStatement                       = { 'with' ___ $(WithItemList) ___ ':' ___ $(Block) #With }
 WithItemList                        = WithItem {$ ( ___ ',' ___ $(WithItem) )+ #List }?
 WithItem                            = Test {$ ___ 'as' ___ $(Expr) #As }?
-Suite                               = { $(SimpleStatement) #Block }
+
+// Block
+Block                               = { $(SimpleStatement) #Block }
                                     / NEWLINE ( _ EOS )* { <block ( <symbol Indent > $(Statement) ( <match Indent> $(Statement) / _ EOS )* )> #Block }
 
 example IfStatement '''
 if True:
   pass
+'''
+
+example IfStatement '''
+if a > 0:
+  print('then')
+else:
+  print('else')
 '''
 
 example IfStatement '''
@@ -175,7 +267,7 @@ except ValueError:
   print("Oops!  That was no valid number.  Try again...")
 '''
 
-example TryStatement '''
+example ForStatement '''
 for arg in sys.argv[1:]:
     try:
         f = open(arg, 'r')
@@ -194,11 +286,17 @@ except NameError:
   raise
 '''
 
+example WithStatement '''
+with open('msg.log', 'w') as wfp:
+    wfp.write('it is sample for with statement.')
+    wfp.write('do not need call close().')
+'''
+
 // ====================
 //      Expression
 // ====================
-ExprStatement                       = TestListStarExpr {$ ___ addAssignOp ___ ($(YieldExpr) / $(TestList)) }
-                                    / TestListStarExpr {$ ___ '=' __ ($(YieldExpr) / $(TestListStarExpr)) #Equals }*
+ExprStatement                       = TestListStarExpr {$left ___ addAssignOp ___ ($right(YieldExpr) / $right(TestList)) }
+                                    / TestListStarExpr {$name ___ '=' __ ($expr(YieldExpr) / $expr(TestListStarExpr)) #VarDecl }*
 addAssignOp                         = '+=' #Addeq
                                     / '-=' #Subeq
                                     / '*=' #Muleq
@@ -214,18 +312,18 @@ addAssignOp                         = '+=' #Addeq
 TestListStarExpr                    = TestStarExpr {$ ___ ',' __ $(TestStarExpr) #List }* ( ___ ',' )?
 TestStarExpr                        = Test
                                     / StarExpr
-TestList                            = Test {$ ___ ',' __ $(Test) #List }* ( ___ ',' )?
+TestList                            = { $(Test) ( ___ ',' __ $(Test) )* #List } ( ___ ',' )?
 Test                                = OrTest {$ ___ 'if' ___ $(OrTest) ___ 'else' ___ $(Test) #If }?
                                     / LambDef
 TestNoCond                          = OrTest
                                     / LambDefNoCond
 LambDef                             = { 'lambda' ___ $(VarArgList)? ___ ':' __ $(Test) #Lambda }
 LambDefNoCond                       = { 'lambda' ___ $(VarArgList)? ___ ':' __ $(TestNoCond) #Lambda }
-OrTest                              = AndTest {$ __ 'or' ____ $(AndTest) #OrTest }*
-AndTest                             = NotTest {$ __ 'and' ____ $(NotTest) #AndTest }*
-NotTest                             = { 'not' ____ $(NotTest) #NotTest }
+OrTest                              = AndTest {$left __ 'or' ____ $right(AndTest) #OrTest }*
+AndTest                             = NotTest {$left __ 'and' ____ $right(NotTest) #AndTest }*
+NotTest                             = { 'not' ____ $expr(NotTest) #Not }
                                     / Comparison
-Comparison                          = StarExpr {$ ___ addCompOp __ $(StarExpr) }*
+Comparison                          = StarExpr {$left ___ addCompOp __ $right(StarExpr) }*
 addCompOp                           = '>=' #GreaterThanEquals
                                     / '<=' #LessThanEquals
                                     / '<' !'<' #LessThan
@@ -237,16 +335,17 @@ addCompOp                           = '>=' #GreaterThanEquals
                                     / 'is' __ 'not' #IsNot
                                     / 'is' #Is
 StarExpr                            = '*'? Expr
-Expr                                = XOrExpr {$ __ '|' !'|' __ $(XOrExpr) #OrExpr }*
-XOrExpr                             = AndExpr {$ __ '^' __ $(AndExpr) #XOrExpr }*
-AndExpr                             = ShiftExpr {$ __ '&' !'&' __ $(ShiftExpr) #AndExpr }*
-ShiftExpr                           = ArithExpr {$ __ ('<<' #LeftShiftExpr / '>>' #RightShiftExpr) __ $(ArithExpr) }*
-ArithExpr                           = Term {$ __ ('+' #Add / '-' #Sub) __ $(Term) }*
-Term                                = Factor {$ __ ('*' #Mul / '%' #Mod / '//' #FloorDiv / '/' #Div) __ $(Factor) }*
-Factor                              = { ('+' #Plus / '-' #Minus / '~' #Compl) __ $(Factor) }
+Expr                                = XOrExpr {$left __ '|' !'|' __ $right(XOrExpr) #OrExpr }*
+XOrExpr                             = AndExpr {$left __ '^' __ $right(AndExpr) #XOrExpr }*
+AndExpr                             = ShiftExpr {$left __ '&' !'&' __ $right(ShiftExpr) #AndExpr }*
+ShiftExpr                           = ArithExpr {$left __ ('<<' #LeftShiftExpr / '>>' #RightShiftExpr) __ $right(ArithExpr) }*
+ArithExpr                           = Term {$left __ ('+' #Add / '-' #Sub) __ $right(Term) }*
+Term                                = Factor {$left __ ('*' #Mul / '%' #Mod / '//' #FloorDiv / '/' #Div) __ $right(Factor) }*
+Factor                              = { ('+' #Plus / '-' #Minus / '~' #Compl) __ $expr(Factor) }
                                     / Power
-Power                               = AtomTrailer {$ __ '**' __ $(Factor) #Power }?
+Power                               = AtomTrailer {$left __ '**' __ $right(Factor) #Power }?
 
+example AtomTrailer int(input("Please enter a number: "))
 example StarExpr *2
 example Expr 1 | 2
 example XOrExpr 1 ^ 2
@@ -261,16 +360,14 @@ example Term 1 % 2
 example Term 1 // 2
 example Factor +1
 example Factor -1
-example Factor ~1
 example Power 1 ** 2
 
 
-AtomTrailer                         = Atom {$ ___ addTrailer }*
+AtomTrailer                         = Atom {$name ___ addTrailer }*
 Atom                                = '(' __ { ( $(YieldExpr) / $(TestListComp) )? #Atom } __ ')'
                                     / '[' __ { $(TestListComp)? #Atom } __ ']'
                                     / '{' __ { $(DictorsetMaker)? #Atom } __ '}'
                                     / '...'
-                                    / NoParenthesesArgumentList_FuncCall
                                     / Name
                                     / Number
                                     / String {$ ( __ $(String) )+ #List }?
@@ -278,7 +375,7 @@ Atom                                = '(' __ { ( $(YieldExpr) / $(TestListComp) 
                                     / True
                                     / False
 TestListComp                        = { $(Test) __ ($(CompFor) / ( ',' __ $(Test) __ )* __ ','?) #List }
-addTrailer                          = '(' __ $(ArgList)? __ ')' #Apply
+addTrailer                          = '(' __ $param(ArgList)? __ ')' #Apply
                                     / '[' __ $(SubScriptList) __ ']' #Array
                                     / '.' ___ $(Name) #Field
 SubScriptList                       = SubScript {$ ( ___ ',' __ $(SubScript) )+ #List }? ___ ','?
@@ -287,12 +384,6 @@ SubScript                           = { $(Test)? ___ ':' ___ $(Test)? ___ addSli
 addSliceOp                          = ':' $(Test)?
 ExprList                            = { $(StarExpr) ( __ ',' __ $(StarExpr) )* __ ','? #List }
 DictorsetMaker                      = { $(Test) ___ (':' __ $(Test) ___ ($(CompFor) / ( ',' __ $(Test) ___ ':' ___ $(Test) ___ )* ','?) / $(CompFor) / ( ',' __ $(Test) __ )* ','?) #Set }
-ClassDef                            = { 'class' ___ $(Name) ___ ( '(' __ $(ArgList) __ ')' ___ )? ':' ___ $(Suite) #Class }
-ArgList                             = { '**' _ $(Test) #Args }
-                                    / { '*' ( _ $(Test) )? ( ___ ',' __ Argument )* ( ___ ',' __ '**' _ $(Test) )? #Args }
-                                    / { ( Argument ( ___ ',' __ Argument )* )? ( ___ ',' __ ('**' _ $(Test) / '*' ( _ $(Test) )? ( ___ ',' __ Argument )* ( ___ ',' __ '**' _ $(Test) )?) )? ( ___ ',' )? #Args }
-Argument                            = $({ $(Test) ( __ $(CompFor) )? ___ '=' __ $(Test) #Initialize })
-                                    / $(Test) ( __ $(CompFor) )?
 CompIter                            = CompFor
                                     / CompIf
 CompFor                             = { 'for' ___ $(ExprList) ___ 'in' ___ $(OrTest) !( _ ',' ) !( _ ':' ) ( __ $(CompIter) )? #For }
@@ -300,45 +391,46 @@ CompIf                              = { 'if' ___ $(TestNoCond) ( __ $(CompIter) 
 YieldExpr                           = { 'yield' ___ $(YieldArg)? #Yield }
 YieldArg                            = { 'from' ___ $(Test) #From }
                                     / TestList
-NoParenthesesArgumentList_FuncCall  = Name {$ _ !( KEYWORD S+ / '(' / ',' ) Argument #Apply }
+//NoParenthesesArgumentList_FuncCall  = Name {$ _ !( KEYWORD S+ / '(' / ',' ) Argument #Apply }
 None                                = { 'None' #None }
 True                                = { 'True' #True }
 False                               = { 'False' #False }
 Name                                = { NAME #Name }
-NAME                                = !( KEYWORD (S+ / NEWLINE / ':') ) ID_START ID_CONTINUE*
-KEYWORD                             = 'False'
-                                    / 'class'
-                                    / 'finally'
-                                    / 'is'
-                                    / 'return'
-                                    / 'None'
-                                    / 'continue'
-                                    / 'for'
-                                    / 'lambda'
-                                    / 'try'
-                                    / 'True'
-                                    / 'def'
-                                    / 'from'
-                                    / 'nonlocal'
-                                    / 'while'
-                                    / 'and'
-                                    / 'del'
-                                    / 'global'
-                                    / 'not'
-                                    / 'with'
-                                    / 'assert'
-                                    / 'as'
-                                    / 'elif'
-                                    / 'if'
-                                    / 'or'
-                                    / 'yield'
-                                    / 'else'
-                                    / 'import'
-                                    / 'pass'
-                                    / 'break'
-                                    / 'except'
-                                    / 'in'
-                                    / 'raise'
+NAME                                = !(KEYWORD) ID_START ID_CONTINUE*
+W                                   = [a-zA-Z0-9_]
+KEYWORD                             = "False"
+                                    / "class"
+                                    / "finally"
+                                    / "is"
+                                    / "return"
+                                    / "None"
+                                    / "continue"
+                                    / "for"
+                                    / "lambda"
+                                    / "try"
+                                    / "True"
+                                    / "def"
+                                    / "from"
+                                    / "nonlocal"
+                                    / "while"
+                                    / "and"
+                                    / "del"
+                                    / "global"
+                                    / "not"
+                                    / "with"
+                                    / "assert"
+                                    / "as"
+                                    / "elif"
+                                    / "if"
+                                    / "or"
+                                    / "yield"
+                                    / "else"
+                                    / "import"
+                                    / "pass"
+                                    / "break"
+                                    / "except"
+                                    / "in"
+                                    / "raise"
 Number                              = ImagNumber
                                     / FloatNumber
                                     / Integer
