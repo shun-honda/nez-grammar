@@ -79,7 +79,7 @@ DefVarArg                           = VarArg {$ __ '=' __ $(Test) #Initialize }?
 VarArg                              = Name
 
 // class definition
-ClassDef                            = { 'class' ___ $(Name) ___ ( '(' __ $(ArgList) __ ')' ___ )? ':' ___ $(Block) #Class }
+ClassDef                            = { 'class' ___ $name(Name) ___ ( '(' __ $super(ArgList) __ ')' ___ )? ':' ___ $body(Block) #ClassDecl }
 ArgList                             = { '**' _ $(Test) #List }
                                     / { '*' ( _ $(Test) )? ( ___ ',' __ Argument )* ( ___ ',' __ '**' _ $(Test) )? #List }
                                     / { ( Argument ( ___ ',' __ Argument )* )? ( ___ ',' __ ('**' _ $(Test) / '*' ( _ $(Test) )? ( ___ ',' __ Argument )* ( ___ ',' __ '**' _ $(Test) )?) )? ( ___ ',' )? #List }
@@ -200,10 +200,10 @@ Elif                                = <match Indent> { 'elif' ___ $cond(Test) __
 Else                                = <match Indent> 'else' ___ ':' ___ $else(Block)
 
 // while
-WhileStatement                      = { 'while' ___ $(Test) ___ ':' ___ $(Block) Else? #While }
+WhileStatement                      = { 'while' ___ $cond(Test) ___ ':' ___ $body(Block) Else? #While }
 
 // for
-ForStatement                        = { 'for' ___ $(ExprList) ___ 'in' ___ $(TestList) ___ ':' ___ $(Block) Else? #For }
+ForStatement                        = { 'for' ___ $(ExprList) ___ 'in' ___ $iter(TestList) ___ ':' ___ $body(Block) Else? #ForEach }
 
 // try/except
 TryStatement                        = { 'try' ___ ':' ___ $try(Block) ($catch(ExceptBlock) Else? ( <match Indent> $finally(Finally) )? / <match Indent> $(Finally)) #Try }
@@ -298,18 +298,18 @@ with open('msg.log', 'w') as wfp:
 // ====================
 ExprStatement                       = TestListStarExpr {$left ___ addAssignOp ___ ($right(YieldExpr) / $right(TestList)) }
                                     / TestListStarExpr {$name ___ '=' __ ($expr(YieldExpr) / $expr(TestListStarExpr)) #VarDecl }*
-addAssignOp                         = '+=' #Addeq
-                                    / '-=' #Subeq
-                                    / '*=' #Muleq
-                                    / '/=' #Diveq
-                                    / '%=' #Modeq
-                                    / '&=' #Andeq
-                                    / '|=' #Oreq
-                                    / '^=' #Xoreq
-                                    / '<<=' #Leftshifteq
-                                    / '>>=' #Rightshifteq
-                                    / '**=' #Poweq
-                                    / '//=' #FloorDiveq
+addAssignOp                         = '+=' #AssignAdd
+                                    / '-=' #AssignSub
+                                    / '**=' #AssignPow
+                                    / '//=' #AssignFloorDiv
+                                    / '*=' #AssignMul
+                                    / '/=' #AssignDiv
+                                    / '%=' #AssignMod
+                                    / '&=' #AssignBitwiseAnd
+                                    / '|=' #AssignBitwiseOr
+                                    / '^=' #AssignBitwiseXOr
+                                    / '<<=' #AssignLeftShift
+                                    / '>>=' #AssignRightShift
 TestListStarExpr                    = TestStarExpr {$ ___ ',' __ $(TestStarExpr) #List }* ( ___ ',' )?
 TestStarExpr                        = Test
                                     / StarExpr
@@ -320,8 +320,8 @@ TestNoCond                          = OrTest
                                     / LambDefNoCond
 LambDef                             = { 'lambda' ___ $(VarArgList)? ___ ':' __ $(Test) #Lambda }
 LambDefNoCond                       = { 'lambda' ___ $(VarArgList)? ___ ':' __ $(TestNoCond) #Lambda }
-OrTest                              = AndTest {$left __ 'or' ____ $right(AndTest) #OrTest }*
-AndTest                             = NotTest {$left __ 'and' ____ $right(NotTest) #AndTest }*
+OrTest                              = AndTest {$left __ 'or' ____ $right(AndTest) #Or }*
+AndTest                             = NotTest {$left __ 'and' ____ $right(NotTest) #And }*
 NotTest                             = { 'not' ____ $expr(NotTest) #Not }
                                     / Comparison
 Comparison                          = StarExpr {$left ___ addCompOp __ $right(StarExpr) }*
@@ -336,15 +336,15 @@ addCompOp                           = '>=' #GreaterThanEquals
                                     / 'is' __ 'not' #IsNot
                                     / 'is' #Is
 StarExpr                            = '*'? Expr
-Expr                                = XOrExpr {$left __ '|' !'|' __ $right(XOrExpr) #OrExpr }*
-XOrExpr                             = AndExpr {$left __ '^' __ $right(AndExpr) #XOrExpr }*
-AndExpr                             = ShiftExpr {$left __ '&' !'&' __ $right(ShiftExpr) #AndExpr }*
-ShiftExpr                           = ArithExpr {$left __ ('<<' #LeftShiftExpr / '>>' #RightShiftExpr) __ $right(ArithExpr) }*
+Expr                                = XOrExpr {$left __ '|' !'|' __ $right(XOrExpr) #BitwiseOr }*
+XOrExpr                             = AndExpr {$left __ '^' __ $right(AndExpr) #BitwiseXor }*
+AndExpr                             = ShiftExpr {$left __ '&' !'&' __ $right(ShiftExpr) #BitwiseAnd }*
+ShiftExpr                           = ArithExpr {$left __ ('<<' #LeftShift / '>>' #RightShift) __ $right(ArithExpr) }*
 ArithExpr                           = Term {$left __ ('+' #Add / '-' #Sub) __ $right(Term) }*
 Term                                = Factor {$left __ ('*' #Mul / '%' #Mod / '//' #FloorDiv / '/' #Div) __ $right(Factor) }*
 Factor                              = { ('+' #Plus / '-' #Minus / '~' #Compl) __ $expr(Factor) }
                                     / Power
-Power                               = AtomTrailer {$left __ '**' __ $right(Factor) #Power }?
+Power                               = AtomTrailer {$left __ '**' __ $right(Factor) #Pow }?
 
 example AtomTrailer int(input("Please enter a number: "))
 example StarExpr *2
@@ -367,9 +367,9 @@ example Test x if C else y
 
 
 AtomTrailer                         = Atom {$name ___ addTrailer }*
-Atom                                = '(' __ { ( $(YieldExpr) / $(TestListComp) )? #Atom } __ ')'
-                                    / '[' __ { $(TestListComp)? #Atom } __ ']'
-                                    / '{' __ { $(DictorsetMaker)? #Atom } __ '}'
+Atom                                = '(' __ { ( $(YieldExpr) / $(TestListComp) )? #Tuple } __ ')'
+                                    / '[' __ { $(TestListComp)? #Array } __ ']'
+                                    / '{' __ { $(DictorsetMaker)? #Set } __ '}'
                                     / '...'
                                     / String {$ ( __ $(String) )+ #List }?
                                     / Number
@@ -394,7 +394,7 @@ DictorsetMaker                      = { $(Test) ___ (':' __ $(Test) ___ ($(CompF
 CompIter                            = CompFor
                                     / CompIf
 CompFor                             = { 'for' ___ $(ExprList) ___ 'in' ___ $(OrTest) !( _ ',' ) !( _ ':' ) ( __ $(CompIter) )? #For }
-CompIf                              = { 'if' ___ $(TestNoCond) ( __ $(CompIter) )? #if }
+CompIf                              = { 'if' ___ $(TestNoCond) ( __ $(CompIter) )? #If }
 YieldExpr                           = { 'yield' ___ $(YieldArg)? #Yield }
 YieldArg                            = { 'from' ___ $(Test) #From }
                                     / TestList
