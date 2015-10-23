@@ -153,9 +153,13 @@ ContinueStatement                   = { 'continue' #Continue }
 ReturnStatement                     = { 'return' ( ___ $expr(TestList) )? #Return }
 RaiseStatement                      = { 'raise' ( ___ $(TestList) ( ___ $({ 'from' ___ $(Test) #From }) )? )? #Raise }
 YieldStatement                      = YieldExpr
+
+// import
 ImportStatement                     = ImportName
                                     / ImportFrom
-ImportName                          = { 'import' ___ $(DottedAsNames) #Import }
+ImportName                          = { 'import' ___ $name(QualifiedNames) #Import }
+QualifiedNames                      = QualifiedName {$ ( __ ',' __ $(QualifiedName) )+ #List }?
+QualifiedName                       = Name {$prefix '.' $name(Name) #QualifiedName }* {$ ___ 'as' ___ $(Name) #As }?
 ImportFrom                          = { $({ 'from' ___ ('.'* $(Module) / '.'+) #From }) ___ $({ 'import' ___ ('(' __ $(ImportList) ( _ ',' )? __ ')' / $(ImportList) / '*') #Import }) #FromImport }
 
 // { @{'from' ___ @Module #From } ___ @{'import' ___ '*' #Import } #FromImport }
@@ -195,9 +199,9 @@ CompoundStatement                   = IfStatement
                                     / Decorated
 
 // if/elif/else
-IfStatement                         = { 'if' ___ $cond(Test) ___ ':' ___ $then(Block) ( $else(Elif) / Else )? #If }
-Elif                                = <match Indent> { 'elif' ___ $cond(Test) ___ ':' ___ $then(Block) ($else(Elif) / Else )?  #If }
-Else                                = <match Indent> 'else' ___ ':' ___ $else(Block)
+IfStatement                         = { 'if' ___ $cond(Test) ___ ':' ___ $then(Block) $elif(Elif)? $else(Else)? #If }
+Elif                                = { (<match Indent> { 'elif' ___ $cond(Test) ___ ':' ___ $then(Block) #ElIf })+ #List}
+Else                                = <match Indent> 'else' ___ ':' ___ (Block)
 
 // while
 WhileStatement                      = { 'while' ___ $cond(Test) ___ ':' ___ $body(Block) Else? #While }
@@ -313,7 +317,7 @@ addAssignOp                         = '+=' #AssignAdd
 TestListStarExpr                    = TestStarExpr {$ ___ ',' __ $(TestStarExpr) #List }* ( ___ ',' )?
 TestStarExpr                        = Test
                                     / StarExpr
-TestList                            = { $(Test) ( ___ ',' __ $(Test) )* #List } ( ___ ',' )?
+TestList                            = (Test) {$ ( ___ ',' __ $(Test) )+ #List }? ( ___ ',' )?
 Test                                = OrTest {$ ___ 'if' ___ $(OrTest) ___ 'else' ___ $(Test) #If }?
                                     / LambDef
 TestNoCond                          = OrTest
@@ -364,6 +368,7 @@ example Factor -1
 example Power 1 ** 2
 example LambDef lambda x, y: x+y
 example Test x if C else y
+example ExprStatement a+=1
 
 
 AtomTrailer                         = Atom {$name ___ addTrailer }*
@@ -389,7 +394,7 @@ SubScriptList                       = SubScript {$ ( ___ ',' __ $(SubScript) )+ 
 SubScript                           = { $(Test)? ___ ':' ___ $(Test)? ___ addSliceOp? #KeyValue }
                                     / Test
 addSliceOp                          = ':' $(Test)?
-ExprList                            = { $(StarExpr) ( __ ',' __ $(StarExpr) )* __ ','? #List }
+ExprList                            = (StarExpr) {$ ( __ ',' __ $(StarExpr) )* __ ','? #List }
 DictorsetMaker                      = { $(Test) ___ (':' __ $(Test) ___ ($(CompFor) / ( ',' __ $(Test) ___ ':' ___ $(Test) ___ )* ','?) / $(CompFor) / ( ',' __ $(Test) __ )* ','?) #Set }
 CompIter                            = CompFor
                                     / CompIf
@@ -514,5 +519,22 @@ example Atom b'a'
 example Atom '''
 b"""a"""
 '''
+
+def #If(node)
+  #If[
+    $cond:node.cond,
+    $then:node.then,
+    $else:ElIf(node.elif, node.else)
+  ]
+
+def Elif(n:ns, else)
+  #If[
+    $cond:n.cond,
+    $then:n.then,
+    $else:Elif(ns, else)
+  ]
+
+def Elif([], else)
+  else
 
 // formatted by $ nez format
