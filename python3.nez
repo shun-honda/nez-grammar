@@ -151,7 +151,7 @@ FlowStatement                       = BreakStatement
 BreakStatement                      = { 'break' #Break }
 ContinueStatement                   = { 'continue' #Continue }
 ReturnStatement                     = { 'return' ( ___ $expr(TestList) )? #Return }
-RaiseStatement                      = { 'raise' ( ___ $(TestList) ( ___ $({ 'from' ___ $(Test) #From }) )? )? #Raise }
+RaiseStatement                      = { 'raise' ( ___ $(TestList) ( ___ $({ 'from' ___ $(Test) #From }) )? )? #Throw }
 YieldStatement                      = YieldExpr
 
 // import
@@ -203,10 +203,40 @@ IfStatement                         = { 'if' ___ $cond(Test) ___ ':' ___ $then(B
 Elif                                = { (<match Indent> { 'elif' ___ $cond(Test) ___ ':' ___ $then(Block) #ElIf })+ #List}
 Else                                = <match Indent> 'else' ___ ':' ___ (Block)
 
-// while
-WhileStatement                      = { 'while' ___ $cond(Test) ___ ':' ___ $body(Block) Else? #While }
+define #If(node)
+  #If[
+    $cond=node.cond,
+    $then=node.then,
+    $else=ElIf(node.elif, node.else)
+  ]
 
-// for
+define Elif(n:ns, else)
+  #If[
+    $cond=n.cond,
+    $then=n.then,
+    $else=Elif(ns, else)
+  ]
+
+define Elif([], else)
+  else
+
+define Elif([], [])
+  #Empty[""]
+
+// while
+WhileStatement                      = { 'while' ___ $cond(Test) ___ ':' ___ $body(Block) $else(Else)? #While }
+
+define #While(node)
+  #While[
+    $cond = #True["True"],
+    $body= #If[
+        $cond = node.cond,
+        $then = node.body,
+        $else = node.else
+    ]
+  ]
+
+// for (not supported else statement in konoha)
 ForStatement                        = { 'for' ___ $(ExprList) ___ 'in' ___ $iter(TestList) ___ ':' ___ $body(Block) Else? #ForEach }
 
 // try/except
@@ -214,7 +244,14 @@ TryStatement                        = { 'try' ___ ':' ___ $try(Block) ($catch(Ex
 ExceptBlock                         = { $(Except)+ #List }
 Except                              = <match Indent> { 'except' ( ___ $(TestList) ( ___ $(AsName))?)? ___ ':' ___ $(Block) #Catch }
 AsName                              = { 'as' ___ $(Name) #As }
-Finally                             = { 'finally' ___ ':' ___ $(Block) #Finally }
+Finally                             = { 'finally' ___ ':' ___ $finally(Block) #Finally }
+
+define #Try(node)
+  #Try[
+    $try = node.try,
+    $except = node.catch,
+    $finally = node.finally
+  ]
 
 // with
 WithStatement                       = { 'with' ___ $(WithItemList) ___ ':' ___ $(Block) #With }
@@ -289,6 +326,22 @@ try:
 except NameError:
   print('An exception flew by!')
   raise
+'''
+
+example TryStatement '''
+try:
+    arg = sys.argv[1]
+    f = open(arg, 'r')
+except IndexError:
+    print('Usage: %s TEXTFILE' % script_name)
+except IOError:
+    print('"%s" cannot be opened.' % arg)
+else:
+    print(arg, 'contains', len(f.read().split(' ')), 'words.')
+    f.close()
+finally:
+    print('n"%s" process end.' % script_name)
+    quit()
 '''
 
 example WithStatement '''
@@ -519,22 +572,5 @@ example Atom b'a'
 example Atom '''
 b"""a"""
 '''
-
-def #If(node)
-  #If[
-    $cond:node.cond,
-    $then:node.then,
-    $else:ElIf(node.elif, node.else)
-  ]
-
-def Elif(n:ns, else)
-  #If[
-    $cond:n.cond,
-    $then:n.then,
-    $else:Elif(ns, else)
-  ]
-
-def Elif([], else)
-  else
 
 // formatted by $ nez format
